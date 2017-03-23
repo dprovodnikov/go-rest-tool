@@ -2,6 +2,7 @@ package rest
 
 import (
   "net/http"
+  "restful/urltools"
 )
 
 type Router struct {
@@ -14,6 +15,7 @@ type ResponseWriter struct {
 
 type Request struct {
   *http.Request
+  Params map[string]string
 }
 
 /* sets a handler for a certain method */
@@ -55,10 +57,15 @@ func (r Router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
   method := req.Method
 
   for url, handler := range r.Routes[method] {
-    if req.URL.Path == url {
-      request := Request{req}
-      responseWriter := ResponseWriter{res}
-      handler(responseWriter, &request)
+    if urltools.Match(url, req.URL.Path) {
+
+      params := urltools.GetParams(url, req.URL.Path)
+
+      request := Request{req, params}
+
+      handler(ResponseWriter{res}, &request)
+
+      break
     }
   }
 }
