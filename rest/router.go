@@ -2,6 +2,7 @@ package rest
 
 import (
   "encoding/json"
+  "fmt"
   "io"
   "net/http"
 )
@@ -22,6 +23,24 @@ type Request struct {
 
 func (w *ResponseWriter) JSON(v interface{}) {
   json, err := json.MarshalIndent(v, "", " ")
+  if err != nil {
+    panic(err)
+  }
+
+  io.WriteString(w, string(json))
+}
+
+func (r *Router) NotFound(w http.ResponseWriter, url, method string) {
+  message := fmt.Sprintf("Cannot %s %s", method, url)
+
+  w.WriteHeader(http.StatusNotFound)
+
+  response := map[string]string{
+    "message": string(message),
+    "status":  fmt.Sprintf("%v", http.StatusNotFound),
+  }
+
+  json, err := json.MarshalIndent(response, "", " ")
   if err != nil {
     panic(err)
   }
@@ -78,8 +97,9 @@ func (r Router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
       handler(ResponseWriter{res}, &request)
 
-      break
+      return
     }
   }
 
+  r.NotFound(res, req.URL.Path, method)
 }

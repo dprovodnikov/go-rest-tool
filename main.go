@@ -7,15 +7,15 @@ import (
 
 func handler(w rest.ResponseWriter, r *rest.Request) {
   w.JSON(map[string]string{
-    "key":  "value",
-    "key1": "value1",
+    "first_name": r.Params["f_name"],
+    "last_name":  r.Params["l_name"],
   })
 }
 
 func main() {
   router := rest.Router{}
 
-  router.POST("/user/:name", handler)
+  router.POST("/user/:f_name/:l_name", handler)
 
   http.ListenAndServe(":8080", router)
 }
