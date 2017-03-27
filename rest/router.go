@@ -1,6 +1,8 @@
 package rest
 
 import (
+  "encoding/json"
+  "io"
   "net/http"
 )
 
@@ -16,6 +18,15 @@ type Request struct {
   *http.Request
   Params map[string]string
   Body   map[string]string
+}
+
+func (w *ResponseWriter) JSON(v interface{}) {
+  json, err := json.MarshalIndent(v, "", " ")
+  if err != nil {
+    panic(err)
+  }
+
+  io.WriteString(w, string(json))
 }
 
 /* sets a handler for a certain method */
@@ -43,12 +54,12 @@ func (r *Router) POST(url string, handler func(ResponseWriter, *Request)) {
 }
 
 /* sets another PUT handler */
-func (r Router) PUT(url string, handler func(ResponseWriter, *Request)) {
+func (r *Router) PUT(url string, handler func(ResponseWriter, *Request)) {
   r.setHandler("PUT", url, handler)
 }
 
 /* sets another DELETE handler */
-func (r Router) DELETE(url string, handler func(ResponseWriter, *Request)) {
+func (r *Router) DELETE(url string, handler func(ResponseWriter, *Request)) {
   r.setHandler("DELETE", url, handler)
 }
 
