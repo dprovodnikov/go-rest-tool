@@ -30,6 +30,10 @@ func (w *ResponseWriter) JSON(v interface{}) {
   io.WriteString(w, string(json))
 }
 
+func CreateRouter() Router {
+  return Router{}
+}
+
 func (r *Router) NotFound(w http.ResponseWriter, url, method string) {
   message := fmt.Sprintf("Cannot %s %s", method, url)
 
