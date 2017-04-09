@@ -13,8 +13,9 @@ func handler(w router.ResponseWriter, req *router.Request) {
   })
 }
 
-func middleware(w router.ResponseWriter, req *router.Request) {
+func middleware(w router.ResponseWriter, req *router.Request) int {
   w.JSON(router.Data{"message": "middleware :)"})
+  return 403
 }
 
 func main() {

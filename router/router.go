@@ -11,10 +11,17 @@ type Router struct {
   Handlers *List
 }
 
+type Data map[string]interface{}
+type HandlerFunc func(ResponseWriter, *Request)
 type Handler struct {
-  Function func(ResponseWriter, *Request)
+  Function HandlerFunc
   Type string
   Route string
+}
+type MiddlewareFunc func(ResponseWriter, *Request) int
+type Middleware struct {
+  Function MiddlewareFunc
+  Type string
 }
 
 type ResponseWriter struct {
@@ -55,33 +62,34 @@ func (r *Router) NotFound(w http.ResponseWriter, url, method string) {
 }
 
 /* sets a handler for a certain method */
-func (r *Router) setHandler(method, url string, handler func(ResponseWriter, *Request)) {
+func (r *Router) setHandler(method, url string, handler HandlerFunc) {
   h := Handler{Type: method, Function: handler, Route: url}
   r.Handlers.Push(h)
 }
 
 /* sets another GET handler */
-func (r *Router) GET(url string, handler func(ResponseWriter, *Request)) {
+func (r *Router) GET(url string, handler HandlerFunc) {
   r.setHandler("GET", url, handler)
 }
 
 /* sets another POST handler */
-func (r *Router) POST(url string, handler func(ResponseWriter, *Request)) {
+func (r *Router) POST(url string, handler HandlerFunc) {
   r.setHandler("POST", url, handler)
 }
 
 /* sets another PUT handler */
-func (r *Router) PUT(url string, handler func(ResponseWriter, *Request)) {
+func (r *Router) PUT(url string, handler HandlerFunc) {
   r.setHandler("PUT", url, handler)
 }
 
 /* sets another DELETE handler */
-func (r *Router) DELETE(url string, handler func(ResponseWriter, *Request)) {
+func (r *Router) DELETE(url string, handler HandlerFunc) {
   r.setHandler("DELETE", url, handler)
 }
 
-func (r *Router) USE(handler func(ResponseWriter, *Request)) {
-  r.setHandler("MIDDLEWARE", "", handler)
+func (r *Router) USE(handler MiddlewareFunc) {
+  m := Middleware{Type: "MIDDLEWARE", Function: handler}
+  r.Handlers.Push(m)
 }
 
 /* a root handler */
@@ -89,19 +97,25 @@ func (r Router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
   method := req.Method
 
   var handlerIndex int = -1
-  for i, handler := range r.Handlers.ToArray() {
-    if Match(handler.Route, req.URL.Path) && handler.Type == method {
-      handlerIndex = i
-      break
+  SearchingForIndex:
+    for i, handler := range r.Handlers.ToArray() {
+      switch handler := handler.(type) {
+      default:
+        continue SearchingForIndex
+      case Handler:
+        if Match(handler.Route, req.URL.Path) && handler.Type == method {
+          handlerIndex = i
+          break SearchingForIndex
+        }
+      }
     }
-  }
 
   if handlerIndex == -1 {
     r.NotFound(res, req.URL.Path, method)
     return
   }
 
-  handler := r.Handlers.Get(handlerIndex)
+  handler := r.Handlers.Get(handlerIndex).(Handler)
 
   params := GetParams(handler.Route, req.URL.Path)
   body := make(map[string]string)
@@ -110,13 +124,19 @@ func (r Router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
   }
 
   request := Request{req, params, body}
-  for i := 0; i < handlerIndex; i++ {
-    if handler := r.Handlers.Get(i); handler.Type != "MIDDLEWARE" {
-      continue
-    } else {
-      handler.Function(ResponseWriter{res}, &request)
+  SearchingForMiddlewares:
+    for i := 0; i < handlerIndex; i++ {
+      switch handler := r.Handlers.Get(i).(type) {
+        default:
+          continue SearchingForMiddlewares
+        case Middleware:
+          status := handler.Function(ResponseWriter{res}, &request)
+          if status >= 300 {
+            // Abort with the status code
+            return
+          }
+      }
     }
-  }
 
   handler.Function(ResponseWriter{res}, &request)
 }
