@@ -15,32 +15,43 @@ type Data map[string]interface{}
 type HandlerFunc func(ResponseWriter, *Request)
 type Handler struct {
   Function HandlerFunc
-  Type string
-  Route string
+  Type     string
+  Route    string
 }
 type MiddlewareFunc func(ResponseWriter, *Request) int
 type Middleware struct {
   Function MiddlewareFunc
-  Type string
+  Type     string
 }
 
 type ResponseWriter struct {
   http.ResponseWriter
+  Aborted bool
 }
 
 type Request struct {
   *http.Request
-  Params map[string]string
-  Body   map[string]string
+  Params      map[string]string
+  RequestBody map[string]string
 }
 
 func (w *ResponseWriter) JSON(v interface{}) {
+  if w.Aborted {
+    return
+  }
+
   json, err := json.MarshalIndent(v, "", " ")
   if err != nil {
     panic(err)
   }
 
   io.WriteString(w, string(json))
+}
+
+func (w *ResponseWriter) Abort(status int, message string) {
+  w.WriteHeader(status)
+  w.JSON(Data{"status": status, "message": message})
+  w.Aborted = true
 }
 
 func CreateRouter() Router {
@@ -124,21 +135,22 @@ func (r Router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
   }
 
   request := Request{req, params, body}
+  response := ResponseWriter{res, false}
   SearchingForMiddlewares:
     for i := 0; i < handlerIndex; i++ {
       switch handler := r.Handlers.Get(i).(type) {
         default:
           continue SearchingForMiddlewares
         case Middleware:
-          status := handler.Function(ResponseWriter{res}, &request)
+          status := handler.Function(response, &request)
           if status >= 300 {
-            // Abort with the status code
+            response.Abort(status, http.StatusText(status))
             return
           }
       }
     }
 
-  handler.Function(ResponseWriter{res}, &request)
+  handler.Function(response, &request)
 }
 
 
